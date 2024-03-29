@@ -128,11 +128,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\Downloads\hash-library-master\hash-library-master\md5.h" />
+    <ClInclude Include="..\..\..\..\Downloads\hash-library-master\hash-library-master\md5.h" />
     <ClInclude Include="Header.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\Downloads\hash-library-master\hash-library-master\md5.cpp" />
+    <ClCompile Include="..\..\..\..\Downloads\hash-library-master\hash-library-master\md5.cpp" />
     <ClCompile Include="Header.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
