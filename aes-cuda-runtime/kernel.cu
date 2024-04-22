@@ -1,5 +1,7 @@
 ﻿#include "functions.h"
 
+//Helpers
+
 void printBytes(BYTE s[], int len) {
     for (int i = 0; i < len; i++)
         printf("%x ", s[i]);
@@ -163,102 +165,98 @@ void AES_Initialize_Decrypt(BYTE AES_ShiftRowTab_Inv[], BYTE AES_xtime[]) {
     }
 }
 
-void AES_Encrypt(AES_block aes_block_array[], BYTE key[], int keyLen, int block_number) {
+void AES_Encrypt_base(AES_block aes_block_array[], BYTE key[], int keyLen, int block_number) {
 
     BYTE AES_ShiftRowTab[16];
     BYTE AES_xtime[256];
 
     AES_Initialize_Encrypt(AES_ShiftRowTab, AES_xtime);
 
-    BYTE block[16];
+    for (int bn = 0; bn < block_number - 1; bn++) {
 
-    for (int i = 0; i < 16; i++) {
-        block[i] = aes_block_array[0].block[i];
-    }
+        BYTE block[16];
 
-    int l = keyLen, i;
+        for (int i = 0; i < 16; i++) {
+            block[i] = aes_block_array[bn].block[i];
+        }
 
-    AES_AddRoundKey(block, &key[0]);
-    for (i = 16; i < l - 16; i += 16) {
+        int l = keyLen, i;
+
+        AES_AddRoundKey(block, &key[0]);
+        for (i = 16; i < l - 16; i += 16) {
+            AES_SubBytes(block, AES_Sbox_init);
+            AES_ShiftRows(block, AES_ShiftRowTab);
+            AES_MixColumns(block, AES_xtime);
+            AES_AddRoundKey(block, &key[i]);
+        }
         AES_SubBytes(block, AES_Sbox_init);
         AES_ShiftRows(block, AES_ShiftRowTab);
-        AES_MixColumns(block, AES_xtime);
         AES_AddRoundKey(block, &key[i]);
-    }
-    AES_SubBytes(block, AES_Sbox_init);
-    AES_ShiftRows(block, AES_ShiftRowTab);
-    AES_AddRoundKey(block, &key[i]);
 
-    for (int i = 0; i < 16; i++) {
-        aes_block_array[0].block[i] = block[i];
+        for (int i = 0; i < 16; i++) {
+            aes_block_array[bn].block[i] = block[i];
+        }
+
     }
 
 }
 
-void AES_Decrypt(AES_block aes_block_array[], BYTE key[], int keyLen, int block_number) {
+void AES_Decrypt_base(AES_block aes_block_array[], BYTE key[], int keyLen, int block_number) {
 
     BYTE AES_ShiftRowTab_Inv[16];
     BYTE AES_xtime[256];
 
     AES_Initialize_Decrypt(AES_ShiftRowTab_Inv, AES_xtime);
 
-    BYTE block[16];
-    for (int i = 0; i < 16; i++) {
-        block[i] = aes_block_array[0].block[i];
-    }
+    for (int bn = 0; bn < block_number - 1; bn++) {
 
-    int l = keyLen, i;
-    AES_AddRoundKey(block, &key[l - 16]);
-    AES_ShiftRows(block, AES_ShiftRowTab_Inv);
-    AES_SubBytes(block, AES_Sbox_Inv_init);
-    for (i = l - 32; i >= 16; i -= 16) {
-        AES_AddRoundKey(block, &key[i]);
-        AES_MixColumns_Inv(block, AES_xtime);
+        BYTE block[16];
+        for (int i = 0; i < 16; i++) {
+            block[i] = aes_block_array[bn].block[i];
+        }
+
+        int l = keyLen, i;
+        AES_AddRoundKey(block, &key[l - 16]);
         AES_ShiftRows(block, AES_ShiftRowTab_Inv);
         AES_SubBytes(block, AES_Sbox_Inv_init);
-    }
-    AES_AddRoundKey(block, &key[0]);
+        for (i = l - 32; i >= 16; i -= 16) {
+            AES_AddRoundKey(block, &key[i]);
+            AES_MixColumns_Inv(block, AES_xtime);
+            AES_ShiftRows(block, AES_ShiftRowTab_Inv);
+            AES_SubBytes(block, AES_Sbox_Inv_init);
+        }
+        AES_AddRoundKey(block, &key[0]);
 
-    for (int i = 0; i < 16; i++) {
-        aes_block_array[0].block[i] = block[i];
+        for (int i = 0; i < 16; i++) {
+            aes_block_array[bn].block[i] = block[i];
+        }
+
     }
 }
 
-int dev() {
+void prepFunc(char* keyLine, char* inputLine, AES_block*& aes_block_array, BYTE key[16 * (14 + 1)], int& expandKeyLen, int& block_number, int& incomplete_block_length) {
 
-    //Вводимая строка
-    char* inputLine = "Lorem ipsum dolor sit amet consectetur adipisicing elit. Minus repellat debitis possimus, ipsa doloribus quos ipsum, laboriosam quia at sapiente culpa iusto enim, voluptatem deserunt dignissimos! Ipsa sit rerum, totam.";
-    std::cout << "Input line: " << inputLine << std::endl;
+    /* ----- KEY ----- */
 
-    //Ключ
-    char* keyLine = "0123456789abcdef"; 
-    std::cout << "Key: " << keyLine << std::endl;
-
-    //Формируем key и keyLen
-    BYTE key[16 * (14 + 1)];
     int keyLen = 0;
     for (int i = 0; keyLine[i] != '\0'; ++i) {
         key[keyLen++] = keyLine[i];
     }
+    expandKeyLen = AES_ExpandKey(key, keyLen, AES_Sbox_init);
 
-    int expandKeyLen = AES_ExpandKey(key, keyLen, AES_Sbox_init);
+    /* ----- INPUT ----- */
 
-    // Изучаем размер строки
     int fileLength = strlen(inputLine);
-    int block_number = fileLength / 16;
-    int incomplete_block_length = fileLength % 16;
-    AES_block* aes_block_array;
+    block_number = fileLength / 16;
+    incomplete_block_length = fileLength % 16;
 
-    std::cout << "Incomplete block length: " << incomplete_block_length << std::endl;
-
-    // Выделяем память под массив блоков данных
     if (incomplete_block_length != 0)
         aes_block_array = new AES_block[block_number + 1];
     else
         aes_block_array = new AES_block[block_number];
     char temp[16];
 
-    // Считываем блоки данных из строки
+    // read blocks
     for (int i = 0; i < block_number; i++) {
         memcpy(temp, inputLine + i * 16, 16);
         for (int j = 0; j < 16; j++) {
@@ -266,7 +264,7 @@ int dev() {
         }
     }
 
-    // Если есть остаточные байты, добавляем нули до полного блока
+    // read incomplete blocks
     if (incomplete_block_length != 0) {
         memcpy(temp, inputLine + block_number * 16, incomplete_block_length);
         for (int j = 0; j < 16; j++) {
@@ -277,24 +275,50 @@ int dev() {
         block_number++;
     }
 
-    AES_Encrypt(aes_block_array, key, expandKeyLen, block_number);
+}
 
-    std::cout << "Encrypted: " << std::endl;
+AES_block * AES_Encrypt(char* keyLine, char* inputLine) {
 
-    for (int i = 0; i < block_number - 1; i++) {
+    /* ----- ENCRYPTION ----- */
+
+    BYTE key[16 * (14 + 1)];
+    int expandKeyLen = 0;
+    int block_number = 0;
+    int incomplete_block_length = 0;
+    AES_block * aes_block_array = new AES_block;
+
+    prepFunc(keyLine, inputLine, aes_block_array, key, expandKeyLen, block_number, incomplete_block_length);
+
+    AES_Encrypt_base(aes_block_array, key, expandKeyLen, block_number);
+
+    /*std::cout << "Encrypted: " << std::endl;
+
+    for (int i = 0; i < block_number; i++) {
         printBytes(aes_block_array[i].block, 16);
-    }
-    printBytes(aes_block_array[block_number - 1].block, incomplete_block_length);
-    
-    AES_Decrypt(aes_block_array, key, expandKeyLen, block_number);
+    }*/
 
-    std::cout << "Decrypted: " << std::endl;
+    return aes_block_array;
+}
 
-    for (int i = 0; i < block_number - 1; i++) {
+AES_block * AES_Decrypt(char* keyLine, char* encryptedLine) {
+
+    /* ----- DECRYPTION ----- */
+
+    BYTE key[16 * (14 + 1)];
+    int expandKeyLen = 0;
+    int block_number = 0;
+    int incomplete_block_length = 0;
+    AES_block * aes_block_array = new AES_block;
+
+    prepFunc(keyLine, encryptedLine, aes_block_array, key, expandKeyLen, block_number, incomplete_block_length);
+
+    AES_Decrypt_base(aes_block_array, key, expandKeyLen, block_number);
+
+    /*std::cout << "Decrypted: " << std::endl;
+
+    for (int i = 0; i < block_number; i++) {
         printChars(aes_block_array[i].block, 16);
-    }
-    printChars(aes_block_array[block_number - 1].block, incomplete_block_length);
+    }*/
 
-    return 0;
-
+    return aes_block_array;
 }
