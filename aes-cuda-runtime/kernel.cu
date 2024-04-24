@@ -1,10 +1,10 @@
 ﻿#include "functions.h"
 
-//Helpers
+/* ----- HELPERS ----- */
 
 void printBytes(BYTE s[], int len) {
     for (int i = 0; i < len; i++)
-        printf("%x ", s[i]);
+        printf("%02x ", s[i]);
     printf("\n");
 }
 
@@ -14,7 +14,12 @@ void printChars(BYTE s[], int len) {
     printf("\n");
 }
 
-//Sbox
+void printToFile(BYTE s[], int len, FILE* fp) {
+    for (int i = 0; i < len; i++) {
+        fprintf(fp, "%c", s[i]);
+    }
+}
+
 BYTE AES_Sbox_init[] =
 {
     0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,0xfe,0xd7,0xab,0x76,
@@ -35,7 +40,6 @@ BYTE AES_Sbox_init[] =
     0x8c,0xa1,0x89,0x0d,0xbf,0xe6,0x42,0x68,0x41,0x99,0x2d,0x0f,0xb0,0x54,0xbb,0x16
 };
 
-//Sbox inverse
 BYTE AES_Sbox_Inv_init[] =
 {
     0x52,0x09,0x6a,0xd5,0x30,0x36,0xa5,0x38,0xbf,0x40,0xa3,0x9e,0x81,0xf3,0xd7,0xfb,
@@ -234,7 +238,67 @@ void AES_Decrypt_base(AES_block aes_block_array[], BYTE key[], int keyLen, int b
     }
 }
 
-void prepFunc(char* keyLine, char* inputLine, AES_block*& aes_block_array, BYTE key[16 * (14 + 1)], int& expandKeyLen, int& block_number, int& incomplete_block_length) {
+void readBlocksFromFile(char* inputFile, AES_block*& aes_block_array, int& block_number, int& incomplete_block_number) {
+
+    std::ifstream ifs;
+    ifs.open(inputFile, std::ios::binary);
+
+    if (!ifs) {
+        std::cerr << "Cannot open the input file" << std::endl;
+        exit(1);
+    }
+
+    ifs.seekg(0, std::ios::end);
+    int fileLength = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+
+    block_number = fileLength / 16;
+    incomplete_block_number = fileLength % 16;
+
+    if (incomplete_block_number != 0)
+        aes_block_array = new AES_block[block_number + 1];
+    else
+        aes_block_array = new AES_block[block_number];
+    char temp[16];
+
+    // read blocks
+    for (int i = 0; i < block_number; i++) {
+        ifs.read(temp, 16);
+        for (int j = 0; j < 16; j++) {
+            aes_block_array[i].block[j] = (unsigned char)temp[j];
+        }
+    }
+
+    // read incomplete blocks
+    if (incomplete_block_number != 0) {
+        ifs.read(temp, incomplete_block_number);
+        for (int j = 0; j < 16; j++) {
+            aes_block_array[block_number].block[j] = (unsigned char)temp[j];
+        }
+        for (int j = 1; j <= 16 - incomplete_block_number; j++)
+            aes_block_array[block_number].block[16 - j] = '\0';
+        block_number++;
+    }
+
+    ifs.close();
+}
+
+void writeBlocksToFile(char* inputFile, AES_block* aes_block_array, int block_number, int incomplete_block_number) {
+
+    FILE* file;
+    file = fopen(inputFile, "wb");
+
+    for (int i = 0; i < block_number - 1; i++) {
+        printToFile(aes_block_array[i].block, 16, file);
+    }
+    if (incomplete_block_number != 0)
+        printToFile(aes_block_array[block_number - 1].block, incomplete_block_number, file);
+
+    fclose(file);
+
+}
+
+void getKey(char* keyLine, BYTE key[16 * (14 + 1)], int& expandKeyLen) {
 
     /* ----- KEY ----- */
 
@@ -244,81 +308,32 @@ void prepFunc(char* keyLine, char* inputLine, AES_block*& aes_block_array, BYTE 
     }
     expandKeyLen = AES_ExpandKey(key, keyLen, AES_Sbox_init);
 
-    /* ----- INPUT ----- */
-
-    int fileLength = strlen(inputLine);
-    block_number = fileLength / 16;
-    incomplete_block_length = fileLength % 16;
-
-    if (incomplete_block_length != 0)
-        aes_block_array = new AES_block[block_number + 1];
-    else
-        aes_block_array = new AES_block[block_number];
-    char temp[16];
-
-    // read blocks
-    for (int i = 0; i < block_number; i++) {
-        memcpy(temp, inputLine + i * 16, 16);
-        for (int j = 0; j < 16; j++) {
-            aes_block_array[i].block[j] = (unsigned char)temp[j];
-        }
-    }
-
-    // read incomplete blocks
-    if (incomplete_block_length != 0) {
-        memcpy(temp, inputLine + block_number * 16, incomplete_block_length);
-        for (int j = 0; j < 16; j++) {
-            aes_block_array[block_number].block[j] = (unsigned char)temp[j];
-        }
-        for (int j = 1; j <= 16 - incomplete_block_length; j++)
-            aes_block_array[block_number].block[16 - j] = '\0';
-        block_number++;
-    }
-
 }
 
-AES_block * AES_Encrypt(char* keyLine, char* inputLine) {
+AES_block * AES_Encrypt(char* keyLine, AES_block* aes_block_array, int block_number, int incomplete_block_number) {
 
     /* ----- ENCRYPTION ----- */
 
     BYTE key[16 * (14 + 1)];
     int expandKeyLen = 0;
-    int block_number = 0;
-    int incomplete_block_length = 0;
-    AES_block * aes_block_array = new AES_block;
 
-    prepFunc(keyLine, inputLine, aes_block_array, key, expandKeyLen, block_number, incomplete_block_length);
+    getKey(keyLine, key, expandKeyLen);
 
     AES_Encrypt_base(aes_block_array, key, expandKeyLen, block_number);
-
-    /*std::cout << "Encrypted: " << std::endl;
-
-    for (int i = 0; i < block_number; i++) {
-        printBytes(aes_block_array[i].block, 16);
-    }*/
 
     return aes_block_array;
 }
 
-AES_block * AES_Decrypt(char* keyLine, char* encryptedLine) {
+AES_block * AES_Decrypt(char* keyLine, AES_block* aes_block_array, int block_number, int incomplete_block_number) {
 
     /* ----- DECRYPTION ----- */
 
     BYTE key[16 * (14 + 1)];
     int expandKeyLen = 0;
-    int block_number = 0;
-    int incomplete_block_length = 0;
-    AES_block * aes_block_array = new AES_block;
 
-    prepFunc(keyLine, encryptedLine, aes_block_array, key, expandKeyLen, block_number, incomplete_block_length);
+    getKey(keyLine, key, expandKeyLen);
 
     AES_Decrypt_base(aes_block_array, key, expandKeyLen, block_number);
-
-    /*std::cout << "Decrypted: " << std::endl;
-
-    for (int i = 0; i < block_number; i++) {
-        printChars(aes_block_array[i].block, 16);
-    }*/
 
     return aes_block_array;
 }
