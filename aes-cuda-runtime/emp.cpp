@@ -2,12 +2,12 @@
 
 int main() {
 
-    char* inputFILE = "input.txt"; //Исходный файл
-    char* encryptFILE = "encrypt.bin"; //Зашифрованный файл
-    char* decryptFILE = "decrypt.txt"; //Расшифрованный файл
+    char* inputFILE = "files/input.txt"; //Исходный файл
+    char* encryptFILE = "files/encrypt.bin"; //Зашифрованный файл
+    char* decryptFILE = "files/decrypt.txt"; //Расшифрованный файл
 
-    int blocks_number; //Число блоков
-    int incomplete_blocks_number; //Число неполных блоков  
+    int blocks_number = 0; //Число блоков
+    int incomplete_blocks_number = 0; //Число неполных блоков  
     AES_block* inputBlocks = new AES_block; // Блоки
 
     /* ----- Ключ ----- */
