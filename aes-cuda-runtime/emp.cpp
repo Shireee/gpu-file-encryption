@@ -9,6 +9,7 @@ int main() {
     int blocks_number = 0; //Число блоков
     int incomplete_blocks_number = 0; //Число неполных блоков  
     AES_block* inputBlocks = new AES_block; // Блоки
+    BYTE iv[16]; //Вектор инициализации
 
     /* ----- Ключ ----- */
 
@@ -18,13 +19,13 @@ int main() {
     /* ----- Шифрование ----- */
 
     readBlocksFromFile(inputFILE, inputBlocks, blocks_number, incomplete_blocks_number);
-    AES_block* encryptedBlocks = AES_Encrypt(keyLine, inputBlocks, blocks_number, incomplete_blocks_number);
+    AES_block* encryptedBlocks = AES_Encrypt(keyLine, inputBlocks, blocks_number, iv,incomplete_blocks_number);
     writeBlocksToFile(encryptFILE, encryptedBlocks, blocks_number, incomplete_blocks_number);
     
     /* ----- Расшифрование ----- */
 
     readBlocksFromFile(encryptFILE, inputBlocks, blocks_number, incomplete_blocks_number);
-    AES_block* decryptedBlocks = AES_Decrypt(keyLine, inputBlocks, blocks_number, incomplete_blocks_number);
+    AES_block* decryptedBlocks = AES_Decrypt(keyLine, inputBlocks, blocks_number, iv, incomplete_blocks_number);
     writeBlocksToFile(decryptFILE, decryptedBlocks, blocks_number, incomplete_blocks_number);
 
 }

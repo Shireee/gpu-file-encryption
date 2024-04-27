@@ -16,10 +16,18 @@ void printChars(BYTE s[], int len) {
 
 void printToFile(BYTE s[], int len, FILE* fp) {
     for (int i = 0; i < len; i++) {
-        std::cout << std::hex << s[i] << " ";
         fprintf(fp, "%c", s[i]);
     }
-    printf("\n");
+}
+
+void generateIV(BYTE iv[], int ivSize) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 255);
+
+    for (int i = 0; i < ivSize; i++) {
+        iv[i] = static_cast<BYTE>(dis(gen));
+    }
 }
 
 BYTE AES_Sbox_init[] =
@@ -200,7 +208,7 @@ __device__ void AES_Initialize_Decrypt(BYTE AES_Sbox_Inv_init[], BYTE AES_ShiftR
     }
 }
 
-__global__ void AES_Encrypt_base(AES_block aes_block_array[], BYTE key[], int keyLen, int block_number) {
+__global__ void AES_Encrypt_ECB(AES_block aes_block_array[], BYTE key[], int keyLen, int block_number) {
 
     int gt_index = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -241,7 +249,7 @@ __global__ void AES_Encrypt_base(AES_block aes_block_array[], BYTE key[], int ke
 
 }
 
-__global__ void AES_Decrypt_base(AES_block aes_block_array[], BYTE key[], int keyLen, int block_number) {
+__global__ void AES_Decrypt_ECB(AES_block aes_block_array[], BYTE key[], int keyLen, int block_number) {
 
     int gt_index = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -276,6 +284,89 @@ __global__ void AES_Decrypt_base(AES_block aes_block_array[], BYTE key[], int ke
             aes_block_array[gt_index].block[i] = block[i];
         }
 
+    }
+}
+
+__global__ void AES_Encrypt_CBC(AES_block aes_block_array[], BYTE key[], int keyLen, BYTE iv[], int block_number) {
+    int gt_index = blockDim.x * blockIdx.x + threadIdx.x;
+
+    __shared__ BYTE AES_ShiftRowTab[16];
+    __shared__ BYTE AES_xtime[256];
+    __shared__ BYTE AES_Sbox_init[256];
+
+    AES_Initialize_Encrypt(AES_Sbox_init, AES_ShiftRowTab, AES_xtime);
+
+    if (gt_index < block_number) {
+        BYTE block[16];
+        BYTE prev_block[16];
+
+        for (int i = 0; i < 16; i++) {
+            block[i] = aes_block_array[gt_index].block[i];
+            prev_block[i] = (gt_index == 0) ? iv[i] : aes_block_array[gt_index - 1].block[i];
+        }
+
+        __syncthreads();
+
+        for (int i = 0; i < 16; i++) {
+            block[i] ^= prev_block[i];
+        }
+
+        int l = keyLen, i;
+
+        AES_AddRoundKey(block, &key[0]);
+        for (i = 16; i < l - 16; i += 16) {
+            AES_SubBytes(block, AES_Sbox_init);
+            AES_ShiftRows(block, AES_ShiftRowTab);
+            AES_MixColumns(block, AES_xtime);
+            AES_AddRoundKey(block, &key[i]);
+        }
+        AES_SubBytes(block, AES_Sbox_init);
+        AES_ShiftRows(block, AES_ShiftRowTab);
+        AES_AddRoundKey(block, &key[i]);
+
+        for (int i = 0; i < 16; i++) {
+            aes_block_array[gt_index].block[i] = block[i];
+        }
+    }
+}
+
+__global__ void AES_Decrypt_CBC(AES_block aes_block_array[], BYTE key[], int keyLen, BYTE iv[], int block_number) {
+    int gt_index = blockDim.x * blockIdx.x + threadIdx.x;
+
+    __shared__ BYTE AES_ShiftRowTab_Inv[16];
+    __shared__ BYTE AES_xtime[256];
+    __shared__ BYTE AES_Sbox_Inv_init[256];
+
+    AES_Initialize_Decrypt(AES_Sbox_Inv_init, AES_ShiftRowTab_Inv, AES_xtime);
+
+    if (gt_index < block_number) {
+        BYTE block[16];
+        BYTE prev_block[16];
+
+        for (int i = 0; i < 16; i++) {
+            block[i] = aes_block_array[gt_index].block[i];
+            prev_block[i] = (gt_index == 0) ? iv[i] : aes_block_array[gt_index - 1].block[i];
+        }
+
+        __syncthreads();
+
+        int l = keyLen, i;
+        AES_AddRoundKey(block, &key[l - 16]);
+        AES_ShiftRows(block, AES_ShiftRowTab_Inv);
+        AES_SubBytes(block, AES_Sbox_Inv_init);
+        for (i = l - 32; i >= 16; i -= 16) {
+            AES_AddRoundKey(block, &key[i]);
+            AES_MixColumns_Inv(block, AES_xtime);
+            AES_ShiftRows(block, AES_ShiftRowTab_Inv);
+            AES_SubBytes(block, AES_Sbox_Inv_init);
+        }
+        AES_AddRoundKey(block, &key[0]);
+
+
+        for (int i = 0; i < 16; i++) {
+            block[i] ^= prev_block[i];
+            aes_block_array[gt_index].block[i] = block[i];
+        }
     }
 }
 
@@ -321,8 +412,6 @@ void readBlocksFromFile(char* inputFile, AES_block*& aes_block_array, int& block
         block_number++;
     }
 
-    printBytes(aes_block_array[block_number - 1].block, 16);
-
     ifs.close();
 }
 
@@ -348,7 +437,7 @@ void writeBlocksToFile(char* inputFile, AES_block* aes_block_array, int block_nu
 
 }
 
-void cudaEncrypt(AES_block*& aes_block_array, BYTE key[], int expandKeyLen, int block_number) {
+void cudaEncrypt(AES_block*& aes_block_array, BYTE key[], int expandKeyLen, BYTE iv[], int block_number) {
 
     cudaSetDevice(0);
     cudaDeviceProp prop;
@@ -377,14 +466,15 @@ void cudaEncrypt(AES_block*& aes_block_array, BYTE key[], int expandKeyLen, int 
     cudaMemcpy(cuda_aes_block_array, aes_block_array, block_number * sizeof(class AES_block), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_key, key, 16 * 15 * sizeof(BYTE), cudaMemcpyHostToDevice);
 
-    AES_Encrypt_base << < BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, block_number);
+    //AES_Encrypt_ECB << < BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, block_number);
+    AES_Encrypt_CBC << <BlockperGrid, ThreadperBlock >> > (aes_block_array, key, expandKeyLen, iv, block_number);
     cudaMemcpy(aes_block_array, cuda_aes_block_array, block_number * sizeof(class AES_block), cudaMemcpyDeviceToHost);
 
     cudaFree(cuda_aes_block_array);
     cudaFree(cuda_key);
 }
 
-void cudaDecrypt(AES_block*& aes_block_array, BYTE key[], int expandKeyLen, int block_number) {
+void cudaDecrypt(AES_block*& aes_block_array, BYTE key[], int expandKeyLen, BYTE iv[], int block_number) {
     
     cudaSetDevice(0);
     cudaDeviceProp prop;
@@ -413,7 +503,8 @@ void cudaDecrypt(AES_block*& aes_block_array, BYTE key[], int expandKeyLen, int 
     cudaMemcpy(cuda_aes_block_array, aes_block_array, block_number * sizeof(class AES_block), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_key, key, 16 * 15 * sizeof(BYTE), cudaMemcpyHostToDevice);
 
-    AES_Decrypt_base << < BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, block_number);
+    //AES_Decrypt_ECB << < BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, block_number);
+    AES_Decrypt_CBC << <BlockperGrid, ThreadperBlock >> > (aes_block_array, key, expandKeyLen, iv, block_number);
     cudaMemcpy(aes_block_array, cuda_aes_block_array, block_number * sizeof(class AES_block), cudaMemcpyDeviceToHost);
 
     cudaFree(cuda_aes_block_array);
@@ -432,7 +523,7 @@ void getKey(char* keyLine, BYTE key[16 * (14 + 1)], int& expandKeyLen) {
 
 }
 
-AES_block * AES_Encrypt(char* keyLine, AES_block* aes_block_array, int block_number, int incomplete_block_number) {
+AES_block * AES_Encrypt(char* keyLine, AES_block* aes_block_array, int block_number, BYTE iv[], int incomplete_block_number) {
 
     /* ----- ENCRYPTION ----- */
 
@@ -441,13 +532,16 @@ AES_block * AES_Encrypt(char* keyLine, AES_block* aes_block_array, int block_num
 
     getKey(keyLine, key, expandKeyLen);
 
-    //AES_Encrypt_base(aes_block_array, key, expandKeyLen, block_number);
-    cudaEncrypt(aes_block_array, key, expandKeyLen, block_number);
+    generateIV(iv, sizeof(iv));
+
+    //AES_Encrypt_ECB(aes_block_array, key, expandKeyLen, block_number);
+    //AES_Encrypt_CBC(aes_block_array, key, expandKeyLen, iv, block_number);
+    cudaEncrypt(aes_block_array, key, expandKeyLen, iv, block_number);
 
     return aes_block_array;
 }
 
-AES_block * AES_Decrypt(char* keyLine, AES_block* aes_block_array, int block_number, int incomplete_block_number) {
+AES_block * AES_Decrypt(char* keyLine, AES_block* aes_block_array, int block_number, BYTE iv[], int incomplete_block_number) {
 
     /* ----- DECRYPTION ----- */
 
@@ -456,8 +550,9 @@ AES_block * AES_Decrypt(char* keyLine, AES_block* aes_block_array, int block_num
 
     getKey(keyLine, key, expandKeyLen);
 
-    //AES_Decrypt_base(aes_block_array, key, expandKeyLen, block_number);
-    cudaDecrypt(aes_block_array, key, expandKeyLen, block_number);
+    //AES_Decrypt_ECB(aes_block_array, key, expandKeyLen, block_number);
+    //AES_Decrypt_CBC(aes_block_array, key, expandKeyLen, iv, block_number);
+    cudaDecrypt(aes_block_array, key, expandKeyLen, iv, block_number);
 
     return aes_block_array;
 }
