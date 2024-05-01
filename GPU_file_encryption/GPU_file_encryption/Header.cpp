@@ -83,8 +83,17 @@ void AEScipher::WriteFile(std::vector<unsigned char > writedata, const std::stri
 
 int AEScipher::CheckSums(unsigned char* data, size_t size)
 {
-
-    return 0;
+    int sum = 0;
+    for (int i = 0; i < size; i+=2) {
+        int mult = data[i] * data[i+1] ;
+        int div = 0;
+        if (data[i + 1] != 0) {
+            div = data[i] / data[i + 1];
+        }
+        sum += mult;
+        sum += div;
+    }
+    return sum;
 }
 
 
@@ -104,11 +113,19 @@ std::vector<unsigned char> AEScipher::ReadFile(std::string path) {
 
     inputFile.close();
 
-    
+    //Delete "\0" 
+    /*buffer.erase(std::remove_if(buffer.begin(), buffer.end(), [](unsigned char c) { return c == '\0'; }), buffer.end());*/
+
     return buffer;
 }
 
-
+// Ôóíêöèÿ äëÿ âûâîäà ìàññèâà
+//void AEScipher::printArray(unsigned char* arr, int length) {
+//    for (int i = 0; i < length; ++i) {
+//        std::cout << std::hex << (int)arr[i] << " ";
+//    }
+//    std::cout << std::dec << std::endl;
+//}
 
 // key expansion
 void AEScipher::keyExpansion(const unsigned char* key, unsigned char w[][4][4]) {
@@ -291,7 +308,7 @@ void AEScipher::InvCipher(unsigned char* input, unsigned char* keyN, const unsig
     unsigned char state[4][4];
     int i, r, c;
 
-    keyExpansion(keyN, w);
+    //keyExpansion(keyN, w);
 
     for (r = 0; r < 4; ++r) {
         for (c = 0; c < 4; ++c) {
