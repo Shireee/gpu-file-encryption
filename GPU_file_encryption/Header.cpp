@@ -320,12 +320,11 @@ void AEScipher::InvsubBytes(unsigned char state[4][Nb])
 // cyclic shift of rows in the state matrix
 void AEScipher::shiftRows(unsigned char state[][4]) {
     unsigned char t[4];
-    int r, c;
-    for (r = 1; r < 4; ++r) {
-        for (c = 0; c < 4; ++c) {
+    for (int r = 1; r < 4; ++r) {
+        for (int c = 0; c < 4; ++c) {
             t[c] = state[r][(c + r) % 4];
         }
-        for (c = 0; c < 4; ++c) {
+        for (int c = 0; c < 4; ++c) {
             state[r][c] = t[c];
         }
     }
@@ -444,9 +443,6 @@ void invertSBox(const unsigned char* sBox, unsigned char* invSBox) {
 void AEScipher::DecryptionBlock(const unsigned char input[], unsigned char output[],
     unsigned char* roundKeys) {
     unsigned char state[4][Nb];
-    
-
-    //keyExpansion(keyN, w);
 
 
     for (int r = 0; r < 4; r++) {
@@ -583,11 +579,11 @@ void AEScipher::WriteDecryptEncriptData(bool decrypt, std::vector<unsigned char 
 
     if (decrypt == 1) {
         std::cout << "Decrypt file " << numberFile << std::endl;
-        filename = "dataDecrypt/fileDecrypt" + std::to_string(numberFile) + ".bin";
+        filename = "data/Decrypted/file" + std::to_string(numberFile) + ".bin";
     }
     else {
         std::cout << "Encript file " << numberFile << std::endl;
-        filename = "dataEncode/fileEncript" + std::to_string(numberFile) + ".bin";
+        filename = "data/Encrypted/file" + std::to_string(numberFile) + ".bin";
     }
 
     WriteFile(Data, filename);

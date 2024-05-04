@@ -8,9 +8,9 @@ int main()
 {
 
 
-	AEScipher path("key.txt", "data");
+	AEScipher path("data/keys.txt", "data/source");
 	bool readKey = false;
-	std::cout << "Output the keys?\n1 - Yes 0 - No : " << std::endl;
+	std::cout << "Output the keys?\n1 - Yes 0 - No : ";
 	std::cin >> readKey;
 	if (readKey == 1) {
 		std::cout<<"Key:" << std::endl;
