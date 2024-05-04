@@ -16,18 +16,19 @@ public:
 
 	AEScipher(std::string pathkey, std::string folder);
 
-	void CheckLength(unsigned int len);
 
 	// print
 	void PrintDataFiles(const std::vector<std::vector<unsigned char>>& files);
 	void PrintKey(const std::vector<unsigned char> vec);
 
-	unsigned char* EncryptionAES(const unsigned char fileEn[], unsigned int fileLen, const unsigned char keyEn[]);
+	unsigned char* EncryptionAES(const unsigned char fileEn[], size_t fileLen, const unsigned char keyEn[]);
     void StartEncryption();
 
-	unsigned char* DecryptionAES(const unsigned char fileEn[], unsigned int fileLen, const unsigned char keyEn[]);
-	void StartDecryption();
+	unsigned char* DecryptionAES(const unsigned char fileEn[], size_t fileLen, const unsigned char keyEn[]);
+	void StartDecryption(bool index, int numberFile = 0 );
 	void StartDecryptionShuffer();
+
+	void WriteDecryptEncriptData(bool decrypt,std::vector<unsigned char > Data, int numberFile);
 
 	void WriteFile(std::vector<unsigned char > writedata, const std::string path);
 
@@ -38,11 +39,11 @@ public:
     void PadKey(std::vector<unsigned char>& addKey);
 
     void CheckSumsMD5(std::vector<unsigned char > data);
+
+	void MemoryCleaning();
 	
 	//a variable for storing all keys
 	std::vector<std::vector<unsigned char >> keyss;
-
-    std::vector<std::vector<unsigned char >> keyss_shuffer;
 
 	std::vector<std::vector<unsigned char >> files;
 

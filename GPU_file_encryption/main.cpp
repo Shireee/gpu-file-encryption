@@ -1,6 +1,6 @@
 ﻿
 #include "Header.h"
-#include "md5.h"
+
 
 
 
@@ -36,8 +36,6 @@ int main()
 
 		std::cout << std::endl << std::endl;
 
-		// new keyss in keyss_shuffer
-		path.Shuffer(path.keyss.size());
 
 		std::cout << "0 - The keys go sequentially to the files\n"
 			"1 - The order of the keys is unknown: ";
@@ -49,9 +47,10 @@ int main()
 		std::cout << std::endl;
 
 		if (index == 0) {
-			path.StartDecryption();
+			path.StartDecryption(index);
 		}
 		else if (index == 1) {
+			path.Shuffer(path.keyss.size());
 			path.StartDecryptionShuffer();
 		}
 		else {
@@ -65,17 +64,7 @@ int main()
 	}
 	
 
-
-	for (auto& vec : path.keyss) {
-		vec.clear(); 
-	}
-	path.keyss.clear();
-
-	for (auto& vec : path.keyss) {
-		vec.clear(); 
-	}
-	path.keyss.clear();
-
+	path.MemoryCleaning();
 
 
 

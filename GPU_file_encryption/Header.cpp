@@ -1,8 +1,6 @@
 ﻿#include "Header.h"
 #include <fstream>
 #include <filesystem>
-#include <string>
-#include <iostream>
 #include <sstream>
 #include <algorithm> // Для std::shuffle
 #include <random>    // Для std::random_device и std::mt19937
@@ -19,22 +17,10 @@ int Padding(int fileSize)
 
 void AEScipher::Shuffer(size_t len_key)
 {
-
-    keyss_shuffer = keyss;
-
-
     std::random_device rd;
     std::mt19937 g(rd());
 
-    std::shuffle(keyss_shuffer.begin(), keyss_shuffer.end(), g);
-
-    //// Выводим результат
-    //for (const auto& row : keyss_shuffer) {
-    //    for (const auto& element : row) {
-    //        std::cout << static_cast<int>(element) << " ";
-    //    }
-    //    std::cout << std::endl;
-    //}
+    std::shuffle(keyss.begin(), keyss.end(), g);
 
 }
 
@@ -83,17 +69,9 @@ AEScipher::AEScipher(std::string pathkey, std::string folder)
     }
 }
 
-void AEScipher::CheckLength(unsigned int len)
-{
-    if (len % blockBytesLen != 0) {
-        throw std::length_error("Plaintext length must be divisible by " +
-            std::to_string(blockBytesLen));
-    }
-}
 
 void AEScipher::PrintDataFiles(const std::vector<std::vector<unsigned char>>& files)
 {
-    //std::cout << "Data file: " << std::endl;
     int number_file_to_read = 0;
     for (const auto& row : files) {
         std::cout << "Data read " << number_file_to_read << " : ";
@@ -122,7 +100,7 @@ void AEScipher::WriteFile(std::vector<unsigned char > writedata, const std::stri
         std::cerr << "Unable to open the file." << std::endl;
     }
 
-    int lastIndex = writedata.size() - 1;
+    size_t lastIndex = writedata.size() - 1;
     while (lastIndex >= 0 && writedata[lastIndex] == '\0') {
         lastIndex--;
     }
@@ -169,10 +147,8 @@ void AEScipher::PadKey(std::vector<unsigned char>& addKey)
 {
     const size_t AES_BLOCK_SIZE = 16;
 
-    // Вычисляем размер, до которого нужно дополнить ключ
     size_t remainder = AES_BLOCK_SIZE - (addKey.size() % AES_BLOCK_SIZE);
 
-    // Дополняем ключ нулями, если это необходимо
     if (remainder != 0) {
         addKey.resize(addKey.size() + remainder, 0);
     }
@@ -185,6 +161,21 @@ void AEScipher::CheckSumsMD5(std::vector<unsigned char> data)
 
     std::string strData(data.begin(), data.end());
     hash.push_back( md5(strData.c_str(), strData.length()));
+
+}
+
+void AEScipher::MemoryCleaning()
+{
+
+
+    std::vector<std::vector<std::vector<unsigned char>>*> vectorsToClear = { &keyss, &files, &filesEncript, &filesDescript };
+
+    for (auto vecPtr : vectorsToClear) {
+        for (auto& vec : *vecPtr) {
+            vec.clear();
+        }
+        vecPtr->clear();
+    }
 
 }
 
@@ -472,9 +463,6 @@ void AEScipher::DecryptionBlock(const unsigned char input[], unsigned char outpu
         InvsubBytes(state);
         InvShiftRows(state);
         addRoundKey(state, roundKeys + round * 4 * Nb);
-
-       /* subBytes(state, invSBox);*/
-        
         InvMixColumns(state);
     }
 
@@ -490,19 +478,17 @@ void AEScipher::DecryptionBlock(const unsigned char input[], unsigned char outpu
 }
 
 
-unsigned char* AEScipher::EncryptionAES(const unsigned char fileEn[], unsigned int fileLen,
+unsigned char* AEScipher::EncryptionAES(const unsigned char fileEn[], size_t fileLen,
     const unsigned char keyEn [])
 {
 
     unsigned char* EncryptText = new unsigned char[fileLen];
     unsigned char* roundKeys = new unsigned char[4 * Nb * (Nr + 1)];
 
-    // Выполняем ключевое расширение
     keyExpansion(keyEn, roundKeys);
 
-    // Шифруем каждый блок данных
     for (size_t i = 0; i < fileLen; i+= blockBytesLen) {
-        EncryptBlock(fileEn + i, EncryptText + i, roundKeys); // Вызываем функцию шифрования блока данных
+        EncryptBlock(fileEn + i, EncryptText + i, roundKeys); 
     }
 
     delete[] roundKeys;
@@ -514,42 +500,15 @@ void AEScipher::StartEncryption()
 {
     for (int i = 0; i < keyss.size(); i++) {
 
-        unsigned char* Encrytkeyss = new unsigned char[keyss[i].size()];
-        unsigned char* EncrytFiles = new unsigned char[files[i].size()];
-
-        std::copy(keyss[i].begin(), keyss[i].end(), Encrytkeyss);
-        std::copy(files[i].begin(), files[i].end(), EncrytFiles);
-
-
-
-
-        size_t length1 = files[i].size();
-
-
-
-        unsigned char* EncrytData = EncryptionAES(EncrytFiles, length1, Encrytkeyss);
-
-
-
-        std::vector<unsigned char > filesEncriptdata;
-
-
-        for (size_t j = 0; j < length1; ++j) {
-            filesEncriptdata.push_back(EncrytData[j]);
-            //std::cout << static_cast<int>(EncrytData[j]) << " ";
-        }
-        std::cout << "Encript file " << i << std::endl;
+        unsigned char* EncrytData = EncryptionAES(files[i].data(), files[i].size(), keyss[i].data());
+;
+        std::vector<unsigned char > filesEncriptdata(EncrytData, EncrytData + files[i].size());
 
 
         filesEncript.push_back(filesEncriptdata);
 
-        std::string filename = "dataEncode/fileEncript" + std::to_string(i) + ".bin";
-        WriteFile(filesEncriptdata, filename);
-        std::cout << "Data written to " << filename << std::endl << std::endl;
-
-        //std::vector<unsigned char> read_Encript_file = path.ReadFile("dataEncode/fileEncript" + std::to_string(i) + ".bin");
-
-        //path.PrintKey(read_Encript_file);
+        // write EncrytData in file 
+        WriteDecryptEncriptData(0, filesEncriptdata, i);
 
 
         delete[] EncrytData;
@@ -560,20 +519,17 @@ void AEScipher::StartEncryption()
 
 
 
-unsigned char* AEScipher::DecryptionAES(const unsigned char fileDe[], unsigned int fileLen,
+unsigned char* AEScipher::DecryptionAES(const unsigned char fileDe[], size_t fileLen,
     const unsigned char keyDe[])
 {
-    //CheckLength(fileLen);
 
     unsigned char* DecryptionText = new unsigned char[fileLen];
     unsigned char* roundKeys = new unsigned char[4 * Nb * (Nr + 1)];
 
-    // Выполняем ключевое расширение
     keyExpansion(keyDe, roundKeys);
 
-    // Шифруем каждый блок данных
     for (size_t i = 0; i < fileLen; i += blockBytesLen) {
-        DecryptionBlock(fileDe + i, DecryptionText + i, roundKeys); // Вызываем функцию шифрования блока данных
+        DecryptionBlock(fileDe + i, DecryptionText + i, roundKeys); 
     }
 
     delete[] roundKeys;
@@ -581,44 +537,27 @@ unsigned char* AEScipher::DecryptionAES(const unsigned char fileDe[], unsigned i
     return DecryptionText;
 }
 
-void AEScipher::StartDecryption()
+void AEScipher::StartDecryption(bool index, int numberFile)
 {
     for (int i = 0; i < keyss.size(); i++) {
+        if (index == 0) 
+            numberFile = i;
 
+        unsigned char* DecryptionData = DecryptionAES(filesEncript[numberFile].data(), filesEncript[numberFile].size(), keyss[i].data());
 
-
-        unsigned char* Decryptkeyss = new unsigned char[keyss[i].size()];
-        unsigned char* DecryptFiles = new unsigned char[filesEncript[i].size()];
-
-        std::copy(keyss[i].begin(), keyss[i].end(), Decryptkeyss);
-        std::copy(filesEncript[i].begin(), filesEncript[i].end(), DecryptFiles);
-
-        size_t length1 = filesEncript[i].size();
-
-
-
-        unsigned char* DecryptionData = DecryptionAES(DecryptFiles, length1, Decryptkeyss);
-        
-
-        std::vector<unsigned char > filesDecryptdata;
-
-
-        for (size_t j = 0; j < length1; ++j) {
-            filesDecryptdata.push_back(DecryptionData[j]);
-            //std::cout << static_cast<int>(DecryptionData[j]) << " ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "Decrypt file " << i << std::endl;
-
+        std::vector<unsigned char > filesDecryptdata(DecryptionData, DecryptionData + filesEncript[numberFile].size());
         filesDescript.push_back(filesDecryptdata);
 
-        std::string filename = "dataDecrypt/fileDecrypt" + std::to_string(i) + ".bin";
-        WriteFile(filesDecryptdata, filename);
-        std::cout << "Data written to " << filename << std::endl << std::endl;
+        std::string strData(filesDecryptdata.begin(), filesDecryptdata.end());
 
-        //std::vector<unsigned char> read_Decrypt_file = ReadFile(filename);
 
+        MD5 md5;
+
+        std::string hash_check = md5(strData.c_str(), strData.length());
+
+        if (hash_check == hash[numberFile]) {
+            WriteDecryptEncriptData(1, filesDecryptdata, numberFile);
+        }
 
 
         delete[] DecryptionData;
@@ -628,55 +567,32 @@ void AEScipher::StartDecryption()
 void AEScipher::StartDecryptionShuffer()
 {
 
+
     for (int i = 0; i < filesEncript.size(); i++) {
-        for (int j = 0; j < keyss_shuffer.size(); j++) {
 
-            unsigned char* Decryptkeyss = new unsigned char[keyss_shuffer[j].size()];
-            unsigned char* DecryptFiles = new unsigned char[filesEncript[i].size()];
-
-            std::copy(keyss_shuffer[j].begin(), keyss_shuffer[j].end(), Decryptkeyss);
-            std::copy(filesEncript[i].begin(), filesEncript[i].end(), DecryptFiles);
-
-            size_t length1 = filesEncript[i].size();
-
-
-
-
-            unsigned char* DecryptionData = DecryptionAES(DecryptFiles, length1, Decryptkeyss);
-
-
-            std::vector<unsigned char> tempData(DecryptionData, DecryptionData + length1);
-
-            std::string strData(tempData.begin(), tempData.end());
-
-            MD5 md5;
-
-            std::string hash_check = md5(strData.c_str(), strData.length());
-
-            if (hash_check == hash[i]) {
-                std::cout << "Decrypt file " << i << std::endl;
-
-                std::vector<unsigned char > filesDecryptdata;
-
-
-                // check DecryptionData
-                for (size_t k = 0; k < length1; ++k) {
-                    filesDecryptdata.push_back(DecryptionData[k]);
-                    //std::cout << static_cast<int>(DecryptionData[k]) << " ";
-                }
-
-
-
-
-                std::string filename = "dataDecrypt/fileDecrypt" + std::to_string(i) + ".bin";
-                WriteFile(filesDecryptdata, filename);
-                std::cout << "Data written to " << filename << std::endl<<std::endl;
-
-                //std::vector<unsigned char> read_Decrypt_file = ReadFile(filename);
-            }
-
-        }
+        StartDecryption(1, i);
+           
     }
+}
+
+void AEScipher::WriteDecryptEncriptData(bool decrypt, std::vector<unsigned char > Data, int numberFile)
+{
+   
+
+    std::string filename;
+
+    if (decrypt == 1) {
+        std::cout << "Decrypt file " << numberFile << std::endl;
+        filename = "dataDecrypt/fileDecrypt" + std::to_string(numberFile) + ".bin";
+    }
+    else {
+        std::cout << "Encript file " << numberFile << std::endl;
+        filename = "dataEncode/fileEncript" + std::to_string(numberFile) + ".bin";
+    }
+
+    WriteFile(Data, filename);
+    std::cout << "Data written to " << filename << std::endl << std::endl;
+
 }
 
 
