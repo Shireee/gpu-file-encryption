@@ -1,5 +1,5 @@
-﻿
-#include "Header.h"
+
+#include "AES.h"
 
 
 
@@ -13,19 +13,12 @@ int main()
 	std::cout << "Output the keys?\n1 - Yes 0 - No : ";
 	std::cin >> readKey;
 	if (readKey == 1) {
-		std::cout<<"Key:" << std::endl;
+		std::cout << "Key:" << std::endl;
 
 		path.PrintDataFiles(path.keyss);
 	}
 
 
-
-	for (int i = 0; i < path.files.size(); i++) {
-		path.CheckSumsMD5(path.files[i]);
-	}
-	std::cout << std::endl;
-	
-	
 
 
 	if (path.keyss.size() == path.files.size()) {
@@ -50,7 +43,7 @@ int main()
 			path.StartDecryption(index);
 		}
 		else if (index == 1) {
-			path.Shuffer(path.keyss.size());
+
 			path.StartDecryptionShuffer();
 		}
 		else {
@@ -60,9 +53,9 @@ int main()
 	}
 	else {
 		std::cout << "Error: not equal number of keys and files" << std::endl;
-		
+
 	}
-	
+
 
 	path.MemoryCleaning();
 

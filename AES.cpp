@@ -1,9 +1,11 @@
-﻿#include "Header.h"
+#include "AES.h"
 #include <fstream>
+#include <cassert>
+#include <cstdlib>
 #include <filesystem>
 #include <sstream>
-#include <algorithm> // Для std::shuffle
-#include <random>    // Для std::random_device и std::mt19937
+#include <algorithm> 
+#include <random>    
 #include "md5.h"
 
 namespace fs = std::filesystem;
@@ -38,7 +40,7 @@ AEScipher::AEScipher(std::string pathkey, std::string folder)
         }
         else {
             emtyLine.push_back(ch);
-            
+
         }
     }
 
@@ -87,7 +89,7 @@ void AEScipher::PrintKey(const std::vector<unsigned char> vec)
 {
     std::cout << "Data in keys: ";
     for (unsigned char data : vec) {
-        std::cout << static_cast<int>(data )<< " ";
+        std::cout << static_cast<int>(data) << " ";
     }
     std::cout << std::endl;
 }
@@ -125,21 +127,21 @@ std::vector<unsigned char> AEScipher::ReadFile(std::string path) {
 
     inputFile.seekg(-1, std::ios::end);
     int size = inputFile.tellg();
-   
+
     int len = Padding(size + 1);
 
 
     std::vector<unsigned char> buffer(len);
 
-    inputFile.seekg( 0 -(size + 1), std::ios::end);
+    inputFile.seekg(0 - (size + 1), std::ios::end);
 
 
-    
+
     inputFile.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
 
     inputFile.close();
 
-    
+
     return buffer;
 }
 
@@ -160,8 +162,22 @@ void AEScipher::CheckSumsMD5(std::vector<unsigned char> data)
     MD5 md5;
 
     std::string strData(data.begin(), data.end());
-    hash.push_back( md5(strData.c_str(), strData.length()));
+    hash.push_back(md5(strData.c_str(), strData.length()));
 
+}
+
+
+std::string AEScipher::isImageData(const std::vector<unsigned char>& data)
+{
+    if (data.size() >= 2 && data[0] == 0xFF && data[1] == 0xD8) {
+        return ".jpg"; // JPEG
+    }
+    else if (data.size() >= 8 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 &&
+        data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A) {
+        return ".png"; // PNG
+    }
+
+    return ".txt";
 }
 
 void AEScipher::MemoryCleaning()
@@ -176,6 +192,7 @@ void AEScipher::MemoryCleaning()
         }
         vecPtr->clear();
     }
+
 
 }
 
@@ -433,7 +450,7 @@ void AEScipher::EncryptBlock(const unsigned char input[], unsigned char out[], u
 
 }
 
-// inverted S-Box transformation  сheck
+// inverted S-Box transformation  �heck
 void invertSBox(const unsigned char* sBox, unsigned char* invSBox) {
     for (int i = 0; i < 256; ++i) {
         invSBox[sBox[i]] = static_cast<unsigned char>(i);
@@ -455,7 +472,7 @@ void AEScipher::DecryptionBlock(const unsigned char input[], unsigned char outpu
 
     int round;
 
-    for (round = Nr-1; round >= 1; round--) {
+    for (round = Nr - 1; round >= 1; round--) {
         InvsubBytes(state);
         InvShiftRows(state);
         addRoundKey(state, roundKeys + round * 4 * Nb);
@@ -475,7 +492,7 @@ void AEScipher::DecryptionBlock(const unsigned char input[], unsigned char outpu
 
 
 unsigned char* AEScipher::EncryptionAES(const unsigned char fileEn[], size_t fileLen,
-    const unsigned char keyEn [])
+    const unsigned char keyEn[])
 {
 
     unsigned char* EncryptText = new unsigned char[fileLen];
@@ -483,8 +500,8 @@ unsigned char* AEScipher::EncryptionAES(const unsigned char fileEn[], size_t fil
 
     keyExpansion(keyEn, roundKeys);
 
-    for (size_t i = 0; i < fileLen; i+= blockBytesLen) {
-        EncryptBlock(fileEn + i, EncryptText + i, roundKeys); 
+    for (size_t i = 0; i < fileLen; i += blockBytesLen) {
+        EncryptBlock(fileEn + i, EncryptText + i, roundKeys);
     }
 
     delete[] roundKeys;
@@ -494,16 +511,17 @@ unsigned char* AEScipher::EncryptionAES(const unsigned char fileEn[], size_t fil
 
 void AEScipher::StartEncryption()
 {
+    createDekstopDir(Encrypted);
     for (int i = 0; i < keyss.size(); i++) {
+        CheckSumsMD5(files[i]);
 
         unsigned char* EncrytData = EncryptionAES(files[i].data(), files[i].size(), keyss[i].data());
-;
+        ;
         std::vector<unsigned char > filesEncriptdata(EncrytData, EncrytData + files[i].size());
 
 
         filesEncript.push_back(filesEncriptdata);
 
-        // write EncrytData in file 
         WriteDecryptEncriptData(0, filesEncriptdata, i);
 
 
@@ -525,7 +543,7 @@ unsigned char* AEScipher::DecryptionAES(const unsigned char fileDe[], size_t fil
     keyExpansion(keyDe, roundKeys);
 
     for (size_t i = 0; i < fileLen; i += blockBytesLen) {
-        DecryptionBlock(fileDe + i, DecryptionText + i, roundKeys); 
+        DecryptionBlock(fileDe + i, DecryptionText + i, roundKeys);
     }
 
     delete[] roundKeys;
@@ -535,8 +553,9 @@ unsigned char* AEScipher::DecryptionAES(const unsigned char fileDe[], size_t fil
 
 void AEScipher::StartDecryption(bool index, int numberFile)
 {
+    createDekstopDir(Decrypted);
     for (int i = 0; i < keyss.size(); i++) {
-        if (index == 0) 
+        if (index == 0)
             numberFile = i;
 
         unsigned char* DecryptionData = DecryptionAES(filesEncript[numberFile].data(), filesEncript[numberFile].size(), keyss[i].data());
@@ -551,6 +570,8 @@ void AEScipher::StartDecryption(bool index, int numberFile)
 
         std::string hash_check = md5(strData.c_str(), strData.length());
 
+
+
         if (hash_check == hash[numberFile]) {
             WriteDecryptEncriptData(1, filesDecryptdata, numberFile);
         }
@@ -562,32 +583,44 @@ void AEScipher::StartDecryption(bool index, int numberFile)
 
 void AEScipher::StartDecryptionShuffer()
 {
-
+    Shuffer(keyss.size());
 
     for (int i = 0; i < filesEncript.size(); i++) {
 
         StartDecryption(1, i);
-           
+
     }
 }
 
 void AEScipher::WriteDecryptEncriptData(bool decrypt, std::vector<unsigned char > Data, int numberFile)
 {
-   
 
     std::string filename;
 
+
     if (decrypt == 1) {
+        std::string format = isImageData(Data);
         std::cout << "Decrypt file " << numberFile << std::endl;
-        filename = "data/Decrypted/file" + std::to_string(numberFile) + ".bin";
+
+        filename = "data/" + Decrypted + "/file" + std::to_string(numberFile) + format;
+
     }
     else {
         std::cout << "Encript file " << numberFile << std::endl;
-        filename = "data/Encrypted/file" + std::to_string(numberFile) + ".bin";
+        filename = "data/" + Encrypted + "/file" + std::to_string(numberFile) + ".bin";
     }
 
     WriteFile(Data, filename);
     std::cout << "Data written to " << filename << std::endl << std::endl;
+
+}
+
+void AEScipher::createDekstopDir(std::string dir_name)
+{
+    fs::path desktop_path = fs::path("data/") / dir_name;
+    if (!fs::exists(desktop_path)) {
+        fs::create_directory(desktop_path);
+    }
 
 }
 
