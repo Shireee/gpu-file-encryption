@@ -9,6 +9,8 @@
 #include <fstream>
 #include <cstring>
 #include <random>
+#include <sstream>
+#include <filesystem>
 
 class AES_block {
 public:
