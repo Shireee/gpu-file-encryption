@@ -1,5 +1,5 @@
 # gpu-file-encryption
-Implementation of AES algorithms on GPU and CPU.
+Implementation of AES algorithm on GPU and CPU.
 
 Requirements: ```C++17``` ```Cuda 12.3```
 
