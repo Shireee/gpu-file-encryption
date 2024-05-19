@@ -12,7 +12,7 @@ class AEScipher
 public:
 
 
-    void Shuffer(size_t len_key);
+	void Shuffer(size_t len_key);
 
 	AEScipher(std::string pathkey, std::string folder);
 
@@ -22,13 +22,14 @@ public:
 	void PrintKey(const std::vector<unsigned char> vec);
 
 	unsigned char* EncryptionAES(const unsigned char fileEn[], size_t fileLen, const unsigned char keyEn[]);
-    void StartEncryption();
+	void StartEncryption();
 
 	unsigned char* DecryptionAES(const unsigned char fileEn[], size_t fileLen, const unsigned char keyEn[]);
-	void StartDecryption(bool index, int numberFile = 0 );
+	void StartDecryption(bool index, int numberFile = 0);
 	void StartDecryptionShuffer();
 
-	void WriteDecryptEncriptData(bool decrypt,std::vector<unsigned char > Data, int numberFile);
+	void WriteDecryptEncriptData(bool decrypt, std::vector<unsigned char > Data, int numberFile);
+	void createDekstopDir(std::string dir_name);
 
 	void WriteFile(std::vector<unsigned char > writedata, const std::string path);
 
@@ -36,12 +37,18 @@ public:
 
 	std::vector<unsigned char> ReadFile(std::string path);
 
-    void PadKey(std::vector<unsigned char>& addKey);
+	void PadKey(std::vector<unsigned char>& addKey);
 
-    void CheckSumsMD5(std::vector<unsigned char > data);
+	void CheckSumsMD5(std::vector<unsigned char > data);
+
+	std::string isImageData(const std::vector<unsigned char>& data);
 
 	void MemoryCleaning();
-	
+
+	// name dir 
+	std::string Encrypted = "Encrypted";
+	std::string Decrypted = "Decrypted";
+
 	//a variable for storing all keys
 	std::vector<std::vector<unsigned char >> keyss;
 
@@ -51,7 +58,7 @@ public:
 
 	std::vector<std::vector<unsigned char >> filesDescript;
 
-    std::vector<std::string> hash;
+	std::vector<std::string> hash;
 
 
 
@@ -59,8 +66,8 @@ private:
 	static constexpr unsigned int Nb = 4;
 	static constexpr unsigned int blockBytesLen = 4 * Nb * sizeof(unsigned char);
 
-	unsigned int Nk=4;
-	unsigned int Nr=10;
+	unsigned int Nk = 4;
+	unsigned int Nr = 10;
 
 
 
@@ -104,7 +111,7 @@ private:
 
 	void addRoundKey(unsigned char state[4][Nb], unsigned char* key);
 
-	void EncryptBlock(const unsigned char input [], unsigned char out[], unsigned char* roundKeys);
+	void EncryptBlock(const unsigned char input[], unsigned char out[], unsigned char* roundKeys);
 	void DecryptionBlock(const unsigned char in[], unsigned char out[],
 		unsigned char* roundKeys);
 };
