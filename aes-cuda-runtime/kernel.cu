@@ -466,8 +466,8 @@ void cudaEncrypt(AES_block*& aes_block_array, BYTE key[], int expandKeyLen, BYTE
     cudaMemcpy(cuda_aes_block_array, aes_block_array, block_number * sizeof(class AES_block), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_key, key, 16 * 15 * sizeof(BYTE), cudaMemcpyHostToDevice);
 
-    //AES_Encrypt_ECB << < BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, block_number);
-    AES_Encrypt_CBC << <BlockperGrid, ThreadperBlock >> > (aes_block_array, key, expandKeyLen, iv, block_number);
+    AES_Encrypt_ECB << < BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, block_number);
+    //AES_Encrypt_CBC << <BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, iv, block_number);
     cudaMemcpy(aes_block_array, cuda_aes_block_array, block_number * sizeof(class AES_block), cudaMemcpyDeviceToHost);
 
     cudaFree(cuda_aes_block_array);
@@ -503,8 +503,8 @@ void cudaDecrypt(AES_block*& aes_block_array, BYTE key[], int expandKeyLen, BYTE
     cudaMemcpy(cuda_aes_block_array, aes_block_array, block_number * sizeof(class AES_block), cudaMemcpyHostToDevice);
     cudaMemcpy(cuda_key, key, 16 * 15 * sizeof(BYTE), cudaMemcpyHostToDevice);
 
-    //AES_Decrypt_ECB << < BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, block_number);
-    AES_Decrypt_CBC << <BlockperGrid, ThreadperBlock >> > (aes_block_array, key, expandKeyLen, iv, block_number);
+    AES_Decrypt_ECB << < BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, block_number);
+    //AES_Decrypt_CBC << <BlockperGrid, ThreadperBlock >> > (cuda_aes_block_array, cuda_key, expandKeyLen, iv, block_number);
     cudaMemcpy(aes_block_array, cuda_aes_block_array, block_number * sizeof(class AES_block), cudaMemcpyDeviceToHost);
 
     cudaFree(cuda_aes_block_array);

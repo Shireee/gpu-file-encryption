@@ -6,6 +6,10 @@
 encrypt.bin
 decrypt.*
 
+files/
+decrypted/
+encrypted/
+
 # User-specific files
 *.rsuser
 *.suo
