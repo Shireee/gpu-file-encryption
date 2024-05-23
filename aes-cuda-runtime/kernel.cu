@@ -420,18 +420,9 @@ void writeBlocksToFile(char* inputFile, AES_block* aes_block_array, int block_nu
     FILE* file;
     file = fopen(inputFile, "wb");
 
-    for (int i = 0; i < block_number - 1; i++) {
+    for (int i = 0; i < block_number ; i++) {
         printToFile(aes_block_array[i].block, 16, file);
     }
-    //Непонятно пока что решение проблемы записи в конец мусора при неполном блоке, поэтому до лучших времен
-    /*if (incomplete_block_number != 0) {
-        std::cout << std::dec << incomplete_block_number << std::endl;
-        printToFile(aes_block_array[block_number - 1].block, incomplete_block_number, file);
-    }
-    else {
-        printToFile(aes_block_array[block_number - 1].block, 16, file);
-    }*/
-    printToFile(aes_block_array[block_number - 1].block, 16, file);
 
     fclose(file);
 

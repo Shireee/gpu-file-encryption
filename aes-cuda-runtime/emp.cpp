@@ -3,11 +3,9 @@
 #include "md5.cpp"
 
 namespace fs = std::filesystem;
-
 MD5 md5;
 
-
-//Вектор с именами файлов
+//file names vector
 std::vector<std::string> getFileNames(char* pathToFiles) {
 
     std::vector<std::string> fileNames;
@@ -15,7 +13,7 @@ std::vector<std::string> getFileNames(char* pathToFiles) {
     for (const auto& entry : fs::directory_iterator(pathToFiles)) {
 
         std::string inputFILE = entry.path().generic_string();
-        std::cout << inputFILE << std::endl;
+        //std::cout << inputFILE << std::endl;
         fileNames.push_back(inputFILE);
 
     }
@@ -23,7 +21,7 @@ std::vector<std::string> getFileNames(char* pathToFiles) {
     return fileNames;
 }
 
-//Вектор со всеми ключами
+//keys vector
 std::vector<std::string > getKeys(char* pathToKeyFile) {
 
     std::vector<std::string> allKeys;
@@ -39,15 +37,15 @@ std::vector<std::string > getKeys(char* pathToKeyFile) {
     return allKeys;
 }
 
-//Открытие файла inputFILE, его шифрование по ключу keyLine, запись в файл encryptFILE
+//read inputFILE, encryption for keyLine, write to encryptFILE
 std::string process_ENC(char* inputFILE, char* encryptFILE, char* keyLine) {
 
-    int blocks_number = 0; //Число блоков
-    int incomplete_blocks_number = 0; //Число неполных блоков  
-    AES_block* inputBlocks = new AES_block; // Блоки
-    BYTE iv[16]; //Вектор инициализации
+    int blocks_number = 0; //Number of full blocks
+    int incomplete_blocks_number = 0; //Number of incomplete blocks 
+    AES_block* inputBlocks = new AES_block; // Blocks
+    BYTE iv[16]; //Init vector (if CBC)
 
-    /* ----- Шифрование ----- */
+    /* ----- Encryption ----- */
 
     readBlocksFromFile(inputFILE, inputBlocks, blocks_number, incomplete_blocks_number);
 
@@ -59,24 +57,26 @@ std::string process_ENC(char* inputFILE, char* encryptFILE, char* keyLine) {
     return hash;
 }
 
-//Открытие файла encryptFILE, его расшифрование по ключу keyLine, запись в файл decryptFILE
-std::string process_DEC(char* encryptFILE, char* decryptFILE, char* keyLine, std::vector<std::string> hashes) {
+//read encryptFILE, decryption for keyLine, write to decryptFILE
+std::string process_DEC(char* encryptFILE, char* decryptFILE, char* keyLine, std::vector<std::string> &hashes) {
 
-    int blocks_number = 0; //Число блоков
-    int incomplete_blocks_number = 0; //Число неполных блоков  
-    AES_block* inputBlocks = new AES_block; // Блоки
-    BYTE iv[16]; //Вектор инициализации
+    int blocks_number = 0; //Number of full blocks
+    int incomplete_blocks_number = 0; //Number of incomplete blocks 
+    AES_block* inputBlocks = new AES_block; // Blocks
+    BYTE iv[16]; //Init vector (if CBC)
 
-    /* ----- Расшифрование ----- */
+    /* ----- Decryption ----- */
 
     readBlocksFromFile(encryptFILE, inputBlocks, blocks_number, incomplete_blocks_number);
     AES_block* decryptedBlocks = AES_Decrypt(keyLine, inputBlocks, blocks_number, iv, incomplete_blocks_number);
 
     std::string hash = md5(decryptedBlocks, blocks_number);
 
-    //Если имеется разность 
-    if (std::find(hashes.begin(), hashes.end(), hash) != hashes.end()) {
+    //write only good files to directory
+    auto iter = std::find(hashes.begin(), hashes.end(), hash);
+    if (iter != hashes.end() ) {
         writeBlocksToFile(decryptFILE, decryptedBlocks, blocks_number, incomplete_blocks_number);
+        hashes.erase(iter);
         return hash;
     }
     else {
@@ -85,16 +85,33 @@ std::string process_DEC(char* encryptFILE, char* decryptFILE, char* keyLine, std
         
 }
 
-void shuffleKeys(std::vector<std::string> &keys) {
+void shuffle(std::vector<std::string> &vec) {
     std::random_device rd;
     std::mt19937 g(rd());
+    std::shuffle(vec.begin(), vec.end(), g);
+}
 
-    std::shuffle(keys.begin(), keys.end(), g);
+//fill number of keys to numer of files
+void fillKeys(std::vector<std::string>& keys, int number) {
+    std::vector<std::string> tempKeys;
+    for (int i = 0; i < number; i++) {
+        if (i >= keys.size()) { tempKeys.push_back(keys[i - keys.size()]); }
+        else { tempKeys.push_back(keys[i]); }
+    }
+    keys = tempKeys;
+}
+
+//clear decrypted & encryted folders;
+void deleteDirectoryContents(char* dir)
+{
+    for (const auto& entry : fs::directory_iterator(dir)) {
+        fs::remove_all(entry.path());
+    }
 }
 
 int main() {
 
-    //Настройки
+    //Settings
 
     char* pathToFiles = "files";
     char* pathToKeyFile = "keys.txt";
@@ -103,47 +120,59 @@ int main() {
     std::vector<std::string> fileNames = getFileNames(pathToFiles);
     std::vector<std::string> fileHashes;
 
-    //Миксим
-    shuffleKeys(keys); 
+    std::cout << "Files in directory: " << fileNames.size() << std::endl;
+    std::cout << "Keys in file: " << keys.size() << std::endl;
 
-    //Шифруем все файлы.
-    for (int i = keys.size() - 1; i >= 0; --i) {
+    //clear dirs
+    deleteDirectoryContents("decrypted");
+    deleteDirectoryContents("encrypted");
 
-        std::string inputFilePath = fileNames[i]; //Исходный файл
+    if (keys.size() == 0 || fileNames.size() == 0) { return 0; }
+    if (keys.size() < fileNames.size()) { fillKeys(keys, fileNames.size()); }
 
-        std::string encFilePath = fileNames[i]; //Шифрованный файл
+    //Mix
+    shuffle(keys);
+
+    std::cout << std::endl << " ----- Encrypt ----- " << std::endl << std::endl;
+
+    //Encryption for all files
+    for (int i = fileNames.size() - 1; i >= 0; --i) {
+
+        char* inputFILE = fileNames[i].data();
+
+        std::string encFilePath = fileNames[i]; 
         encFilePath.erase(0, encFilePath.find_first_of("/"));
         encFilePath.erase(encFilePath.find_last_of("."), encFilePath.size() - 1);
         encFilePath = "encrypted" + encFilePath + ".bin";
-
-        char* inputFILE = inputFilePath.data();
         char* encryptFILE = encFilePath.data();
 
         char* keyLine = reinterpret_cast<char*>(keys[i].data());
 
         std::string hash_INP = process_ENC(inputFILE, encryptFILE, keyLine);
-        std::cout << i << ") HASH_INP: " << hash_INP << std::endl;
-
         fileHashes.push_back(hash_INP);
+
+        std::cout << i << ") \tHASH_INP: " << hash_INP << " | KEY: " << keyLine << std::endl;
 
     }
 
-    //Миксим
-    shuffleKeys(keys);
+    //Mix
+    shuffle(keys);
+    shuffle(fileNames);
 
-    //Пытаемся расшифровать
-    for (int i = keys.size() - 1; i >= 0; --i) {
+    std::cout << std::endl << " ----- Decrypt ----- " << std::endl << std::endl;
 
-        std::string encFilePath = fileNames[i]; //Шифрованный файл
+    //Decryption
+    for (int i = fileNames.size() - 1; i >= 0; --i) {
+
+        std::string encFilePath = fileNames[i]; 
         encFilePath.erase(0, encFilePath.find_first_of("/"));
         encFilePath.erase(encFilePath.find_last_of("."), encFilePath.size() - 1);
         encFilePath = "encrypted" + encFilePath + ".bin";
+        char* encryptFILE = encFilePath.data();
 
-        std::string decFilePath = fileNames[i]; //Дешифрованный файл
+        std::string decFilePath = fileNames[i]; 
         decFilePath.erase(0, decFilePath.find_first_of("/"));
         decFilePath = "decrypted" + decFilePath;
-
-        char* encryptFILE = encFilePath.data();
         char* decryptFILE = decFilePath.data();
 
         for (int j = keys.size() - 1; j >= 0; --j) {
@@ -153,7 +182,7 @@ int main() {
             std::string hash_DEC = process_DEC(encryptFILE, decryptFILE, keyLine, fileHashes);
 
             if (hash_DEC != "badhash") {
-                std::cout << j << ") HASH_DEC: " << hash_DEC << std::endl;
+                std::cout << i << ") \tHASH_DEC: " << hash_DEC << " | KEY: " << keyLine << std::endl;
             }
 
         }
