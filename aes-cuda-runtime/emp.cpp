@@ -91,6 +91,29 @@ void shuffle(std::vector<std::string> &vec) {
     std::shuffle(vec.begin(), vec.end(), g);
 }
 
+char getRandChar() {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution <> distr('a', 'z');
+    char symbol = distr(gen);
+    return symbol;
+}
+
+//expand keys to defined key length param;
+void completeKeys(std::vector<std::string>& keys, int keyLen) {
+    for (int i = 0; i < keys.size(); i++) {
+        if (keys[i].size() > keyLen) {
+            keys[i].erase(keyLen, keys[i].size() - keyLen);
+        };
+
+        if (keys[i].size() < keyLen) {
+            std::ostringstream sline;
+            for (int j = 0; j < keyLen - keys[i].size(); j++) { sline << getRandChar(); }
+            keys[i] = keys[i] + sline.str();
+        };
+    }
+}
+
 //fill number of keys to numer of files
 void fillKeys(std::vector<std::string>& keys, int number) {
     std::vector<std::string> tempKeys;
@@ -104,7 +127,7 @@ void fillKeys(std::vector<std::string>& keys, int number) {
     keys = tempKeys;
 }
 
-//clear decrypted & encryted folders;
+//clear folders func;
 void deleteDirectoryContents(char* dir)
 {
     for (const auto& entry : fs::directory_iterator(dir)) {
@@ -118,6 +141,7 @@ int main() {
 
     char* pathToFiles = "files";
     char* pathToKeyFile = "keys.txt";
+    int keyLength = 24;
 
     std::vector<std::string> keys = getKeys(pathToKeyFile);
     std::vector<std::string> fileNames = getFileNames(pathToFiles);
@@ -131,6 +155,7 @@ int main() {
     deleteDirectoryContents("encrypted");
 
     if (keys.size() == 0 || fileNames.size() == 0) { return 0; }
+    else { completeKeys(keys, keyLength); };
     if (keys.size() < fileNames.size()) { fillKeys(keys, fileNames.size()); }
 
     //Mix
