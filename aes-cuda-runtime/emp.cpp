@@ -94,8 +94,11 @@ void shuffle(std::vector<std::string> &vec) {
 //fill number of keys to numer of files
 void fillKeys(std::vector<std::string>& keys, int number) {
     std::vector<std::string> tempKeys;
+    srand(unsigned(time(0)));
     for (int i = 0; i < number; i++) {
-        if (i >= keys.size()) { tempKeys.push_back(keys[i - keys.size()]); }
+        if (i >= keys.size()) { 
+            tempKeys.push_back(keys[rand() % (keys.size())]);
+        }
         else { tempKeys.push_back(keys[i]); }
     }
     keys = tempKeys;

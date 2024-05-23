@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <sstream>
 #include <filesystem>
+#include <ctime>
 
 class AES_block {
 public:
